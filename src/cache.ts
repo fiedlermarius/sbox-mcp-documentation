@@ -84,6 +84,17 @@ export class DocCache {
         fs.writeFileSync(this.manifestPath, JSON.stringify(this.manifest), "utf-8");
     }
 
+    removePagesNotIn(validUrls: Set<string>): number {
+        let removed = 0;
+        for (const url of Object.keys(this.manifest.pages)) {
+            if (!validUrls.has(url)) {
+                delete this.manifest.pages[url];
+                removed++;
+            }
+        }
+        return removed;
+    }
+
     clear(): void {
         this.manifest = { version: CACHE_VERSION, pages: {}, lastFullCrawl: 0 };
         this.save();
@@ -151,6 +162,22 @@ export class DocCache {
             const allPages = cache.getAllPages();
             assert("getAllPages returns 1 page", allPages.length === 1);
             assert("getAllPages first page title", allPages[0]?.title === "Test Page");
+
+            // Test: removePagesNotIn
+            cache.setPage(testPage);
+            cache.setPage({
+                url: "https://example.com/stale",
+                title: "Stale Page",
+                category: "Old",
+                markdown: "This will be pruned.",
+                fetchedAt: Date.now(),
+            });
+            assert("cache has 2 pages before prune", cache.getPageCount() === 2);
+            const removed = cache.removePagesNotIn(new Set([testPage.url]));
+            assert("removePagesNotIn returns 1", removed === 1);
+            assert("cache has 1 page after prune", cache.getPageCount() === 1);
+            assert("kept page still exists", cache.getPage(testPage.url) !== undefined);
+            assert("stale page removed", cache.getPage("https://example.com/stale") === undefined);
 
             // Test: clear
             cache.clear();

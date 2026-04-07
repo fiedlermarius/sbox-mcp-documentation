@@ -195,6 +195,15 @@ export class DocCrawler {
             await delay(REQUEST_DELAY_MS);
         }
 
+        // Prune cached pages that are no longer in the doc tree
+        const validUrls = new Set(this.docTree.map((d) => `${DOCS_BASE}${d.url}`));
+        const pruned = this.cache.removePagesNotIn(validUrls);
+        if (pruned > 0) {
+            process.stderr.write(
+                `\n[sbox-docs-mcp] Pruned ${pruned} stale page(s) from cache\n`
+            );
+        }
+
         this.cache.markFullCrawl();
         this.cache.save();
         return stats;
