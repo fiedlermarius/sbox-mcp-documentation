@@ -171,13 +171,23 @@ export class DocCrawler {
             // Check page-level cache
             if (this.cache.isPageFresh(fullUrl)) {
                 stats.fromCache++;
+                process.stderr.write(`\n[sbox-docs-mcp] Skipped (cached):\n${fullUrl}\n`);
                 onProgress?.(stats);
                 continue;
             }
 
             const fetched = await this.fetchDoc(doc.id);
-            if (!fetched || !fetched.text || fetched.text.length < 10) {
+            if (!fetched) {
                 stats.failed++;
+                process.stderr.write(`\n[sbox-docs-mcp] Skipped (fetch failed):\n${fullUrl} (no response)\n`);
+                onProgress?.(stats);
+                await delay(REQUEST_DELAY_MS);
+                continue;
+            }
+            if (!fetched.text || fetched.text.length < 10) {
+                stats.failed++;
+                let reason = !fetched.text ? "empty text" : "too short";
+                process.stderr.write(`\n[sbox-docs-mcp] Skipped (${reason}):\n${fullUrl}\n`);
                 onProgress?.(stats);
                 await delay(REQUEST_DELAY_MS);
                 continue;
