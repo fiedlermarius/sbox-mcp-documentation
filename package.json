@@ -10,8 +10,14 @@
     "scripts": {
         "build": "tsc",
         "start": "node dist/index.js",
-        "dev": "npx tsx src/index.ts"
+        "dev": "npx tsx src/index.ts",
+        "prepublishOnly": "npm run build"
     },
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
     "keywords": [
         "mcp",
         "sbox",

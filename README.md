@@ -1,8 +1,31 @@
 # sbox-mcp-documentation
 
+[![npm version](https://img.shields.io/npm/v/sbox-mcp-documentation.svg)](https://www.npmjs.com/package/sbox-mcp-documentation)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with searchable access to the full **s&box** game engine documentation — 180+ pages of guides, tutorials, and concepts.
 
-> **npm registry:** Publishing to npm is planned for an upcoming release. For now, use the [local checkout](#install-from-source) method below.
+## Quick Start
+
+No installation required — use `npx` directly in your MCP config:
+
+```json
+{
+    "servers": {
+        "sbox-docs": {
+            "type": "stdio",
+            "command": "npx",
+            "args": ["-y", "sbox-mcp-documentation"]
+        }
+    }
+}
+```
+
+Or install globally:
+
+```bash
+npm install -g sbox-mcp-documentation
+```
 
 ## Features
 
@@ -17,7 +40,19 @@ An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that 
 
 Documentation is fetched from the official [Facepunch docs](https://docs.facepunch.com/s/sbox-dev) via the Outline wiki API, which returns raw Markdown directly. The server crawls the full document tree (~202 entries, 180+ with content) and builds a local search index using [MiniSearch](https://lucaong.github.io/minisearch/).
 
-## Install from Source
+## Installation
+
+### Option 1: npx (recommended)
+
+No install needed. Just reference `npx sbox-mcp-documentation` in your MCP configuration (see below).
+
+### Option 2: Global install
+
+```bash
+npm install -g sbox-mcp-documentation
+```
+
+### Option 3: From source
 
 ```bash
 git clone https://github.com/fiedlermarius/sbox-mcp-documentation.git
@@ -37,8 +72,8 @@ Add to `.vscode/mcp.json` in your workspace:
     "servers": {
         "sbox-docs": {
             "type": "stdio",
-            "command": "node",
-            "args": ["<path-to-repo>/dist/index.js"]
+            "command": "npx",
+            "args": ["-y", "sbox-mcp-documentation"]
         }
     }
 }
@@ -52,8 +87,8 @@ Add to `.cursor/mcp.json`:
 {
     "mcpServers": {
         "sbox-docs": {
-            "command": "node",
-            "args": ["<path-to-repo>/dist/index.js"]
+            "command": "npx",
+            "args": ["-y", "sbox-mcp-documentation"]
         }
     }
 }
@@ -67,14 +102,14 @@ Add to your Claude Desktop config (`%APPDATA%/Claude/claude_desktop_config.json`
 {
     "mcpServers": {
         "sbox-docs": {
-            "command": "node",
-            "args": ["<path-to-repo>/dist/index.js"]
+            "command": "npx",
+            "args": ["-y", "sbox-mcp-documentation"]
         }
     }
 }
 ```
 
-Replace `<path-to-repo>` with the absolute path to your cloned repository.
+If using a local checkout instead of npx, replace `"command": "npx"` and `"args"` with `"command": "node"` and `"args": ["<path-to-repo>/dist/index.js"]`.
 
 ## Tools
 
