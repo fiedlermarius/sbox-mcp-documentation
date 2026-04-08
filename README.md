@@ -162,16 +162,6 @@ docs.facepunch.com (Outline API)
 - **Location:** `~/.sbox-docs-mcp/cache/`
 - **TTL:** 4 hours (configurable via `SBOX_DOCS_CACHE_TTL` env var, in seconds)
 - **Custom directory:** Set `SBOX_DOCS_CACHE_DIR` env var
-        - **Example (Windows, PowerShell):**
-            ```powershell
-            $env:SBOX_DOCS_CACHE_DIR = "C:/my/custom/cache/dir"
-            npx sbox-mcp-documentation
-            ```
-        - **Example (Linux/macOS, bash):**
-            ```bash
-            export SBOX_DOCS_CACHE_DIR="/home/user/my/custom/cache/dir"
-            npx sbox-mcp-documentation
-            ```
 - Cache is populated on server startup in the background
 - Individual pages can be fetched on-demand if not yet cached
 
