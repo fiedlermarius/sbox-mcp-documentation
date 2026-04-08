@@ -15,27 +15,37 @@ argument-hint: 'patch | minor | major'
 ## Procedure
 
 1. **Ensure a clean state** — all changes committed, no uncommitted files
-2. **Build the package:**
+2. **Bump the version and create a git tag** (choose one):
    ```powershell
-   npm run build
+   npm version patch   # bug fixes  → v0.1.x
+   npm version minor   # new features → v0.x.0
+   npm version major   # breaking changes → vx.0.0
    ```
-3. **Bump the version** (choose one):
+   This updates `package.json`, commits the change, and creates a `vX.Y.Z` git tag automatically.
+3. **Push the commit and tag:**
    ```powershell
-   npm version patch   # bug fixes
-   npm version minor   # new features
-   npm version major   # breaking changes
+   git push --follow-tags
    ```
-4. **Publish to npm:**
-   ```powershell
-   npm publish
-   ```
-5. **Verify** the package is live at [npmjs.com/package/sbox-mcp-documentation](https://www.npmjs.com/package/sbox-mcp-documentation)
+   This triggers the GitHub Actions `release` workflow which:
+   - Builds the package
+   - Publishes to npm (uses `NPM_TOKEN` secret)
+   - Creates a GitHub Release with auto-generated release notes
+
+## Manual publish (fallback)
+
+If CI is not set up or you want to publish locally:
+```powershell
+npm run build ; npm publish
+```
+
+## First-time setup
+
+Add `NPM_TOKEN` to the repository secrets:
+- Go to repo → Settings → Secrets and variables → Actions
+- Add secret `NPM_TOKEN` with your npm access token (`npm token create`)
 
 ## Notes
 
-- Must be logged in: `npm login`
+- Must be logged into npm for manual publishes: `npm login`
 - Update `README.md` for any user-facing changes before publishing
-- Optional: tag the release in git:
-  ```powershell
-  git tag vX.Y.Z ; git push --tags
-  ```
+- Verify the release at [npmjs.com/package/sbox-mcp-documentation](https://www.npmjs.com/package/sbox-mcp-documentation)
