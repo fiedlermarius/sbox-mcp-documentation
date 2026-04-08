@@ -12,16 +12,16 @@ jobs:
       contents: write      # Required for creating GitHub releases
       id-token: write      # Required for OIDC trusted publishing
 
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'   # Node 24 ships with npm 11.x (required for trusted publishing)
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Update npm (Trusted Publishing requires npm >=11.5.1)
-        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: npm ci
