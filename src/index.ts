@@ -125,9 +125,13 @@ async function doIndex(): Promise<void> {
     await cache.init();
 
     const stats = await crawler.crawlAll((s) => {
-        process.stderr.write(
-            `\r[sbox-docs-mcp] Crawling... ${s.crawled} fetched, ${s.fromCache} cached, ${s.failed} failed`
-        );
+        const done = s.crawled + s.failed + s.fromCache;
+        if (done % 10 === 0 || done === s.total) {
+            const pct = s.total > 0 ? Math.round((done / s.total) * 100) : 0;
+            process.stderr.write(
+                `[sbox-docs-mcp] Crawling... ${done}/${s.total} (${pct}%) — ${s.crawled} fetched, ${s.failed} skipped\n`
+            );
+        }
     });
 
     process.stderr.write(

@@ -65,6 +65,7 @@ export interface CrawlStats {
     crawled: number;
     failed: number;
     fromCache: number;
+    total: number;
 }
 
 export class DocCrawler {
@@ -143,10 +144,10 @@ export class DocCrawler {
         // If cache is fresh, skip crawling
         if (this.cache.isFresh()) {
             const count = this.cache.getPageCount();
-            return { crawled: 0, failed: 0, fromCache: count };
+            return { crawled: 0, failed: 0, fromCache: count, total: count };
         }
 
-        const stats: CrawlStats = { crawled: 0, failed: 0, fromCache: 0 };
+        const stats: CrawlStats = { crawled: 0, failed: 0, fromCache: 0, total: 0 };
 
         // Load the document tree from the Outline API
         const treeLoaded = await this.loadTree();
@@ -157,6 +158,8 @@ export class DocCrawler {
             stats.fromCache = this.cache.getPageCount();
             return stats;
         }
+
+        stats.total = this.docTree.length;
 
         process.stderr.write(
             `\n[sbox-docs-mcp] Found ${this.docTree.length} docs in tree\n`
