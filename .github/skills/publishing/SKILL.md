@@ -28,7 +28,7 @@ argument-hint: 'patch | minor | major'
    ```
    This triggers the GitHub Actions `release` workflow which:
    - Builds the package
-   - Publishes to npm (uses `NPM_TOKEN` secret)
+   - Publishes to npm via OIDC (no secrets required)
    - Creates a GitHub Release with auto-generated release notes
 
 ## Manual publish (fallback)
@@ -40,9 +40,11 @@ npm run build ; npm publish
 
 ## First-time setup
 
-Add `NPM_TOKEN` to the repository secrets:
-- Go to repo → Settings → Secrets and variables → Actions
-- Add secret `NPM_TOKEN` with your npm access token (`npm token create`)
+This workflow uses **npm Trusted Publishing** (OIDC) — no secrets or tokens needed in GitHub.
+
+One-time configuration on npmjs.com:
+1. Go to [npmjs.com/package/sbox-mcp-documentation](https://www.npmjs.com/package/sbox-mcp-documentation) → Settings → Trusted Publishing
+2. Select **GitHub Actions** and fill in the repository details to allow the `release` workflow to publish on your behalf.
 
 ## Notes
 
