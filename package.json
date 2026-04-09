@@ -1,7 +1,7 @@
 {
     "name": "sbox-mcp-documentation",
     "version": "0.1.2",
-    "description": "MCP server for searching and reading s&box game engine documentation",
+    "description": "MCP server for searching and reading s&box game engine documentation and API reference",
     "type": "module",
     "main": "dist/index.js",
     "bin": {
@@ -24,7 +24,8 @@
         "s&box",
         "facepunch",
         "gamedev",
-        "documentation"
+        "documentation",
+        "api-reference"
     ],
     "license": "MIT",
     "repository": {

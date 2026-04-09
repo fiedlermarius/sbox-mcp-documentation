@@ -3,7 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/sbox-mcp-documentation.svg)](https://www.npmjs.com/package/sbox-mcp-documentation)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with searchable access to the full **s&box** game engine documentation — 180+ pages of guides, tutorials, and concepts.
+An [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server that provides AI assistants with searchable access to the full **s&box** game engine documentation — 180+ pages of guides, tutorials, and concepts — plus the complete **API reference** with 1,800+ types and 15,000+ members.
 
 ## Quick Start
 
@@ -29,16 +29,28 @@ npm install -g sbox-mcp-documentation
 
 ## Features
 
+### Documentation
 - **Full-text search** across all s&box documentation with fuzzy matching and relevance ranking
 - **Direct page retrieval** with chunked reading for large pages
 - **Category browsing** to discover available documentation topics
-- **Automatic caching** with configurable TTL (default 4 hours) — no repeated API calls
-- **Background indexing** on startup
+
+### API Reference
+- **API type search** across 1,800+ public types (classes, structs, enums, interfaces) with member-aware ranking
+- **Detailed type lookup** — methods, properties, fields, events, XML doc comments, and inheritance info
+- **Chunked output** for large types so no detail is truncated
+
+### General
+- **Automatic caching** — docs cached for 4 hours, API schema cached for 24 hours
+- **Background indexing** on startup — both subsystems ready within seconds
 - **Built-in self-tests** to verify the server is working correctly
 
-## Data Source
+## Data Sources
 
+### Documentation
 Documentation is fetched from the official [Facepunch docs](https://docs.facepunch.com/s/sbox-dev) via the Outline wiki API, which returns raw Markdown directly. The server crawls the full document tree (~202 entries, 180+ with content) and builds a local search index using [MiniSearch](https://lucaong.github.io/minisearch/).
+
+### API Reference
+The API schema is downloaded from the Facepunch CDN as a JSON file (the same data powering [sbox.game/api](https://sbox.game/api)). It contains all public types from the s&box assembly — 1,800+ types with full member signatures, XML doc comments, and inheritance info. The server strips internal/compiler-generated types and indexes everything with MiniSearch for fast fuzzy lookup.
 
 ## Installation
 
@@ -134,39 +146,42 @@ As shown above, you need to replace `"command": "npx"` and `"args"` with `"comma
 | `sbox_search_docs` | Search documentation with fuzzy matching. Returns titles, URLs, categories, and relevant snippets. Supports category filtering and result limits. |
 | `sbox_get_doc_page` | Fetch a specific documentation page as Markdown. Supports chunked reading via `start_index` and `max_length` for large pages. |
 | `sbox_list_doc_categories` | List all documentation categories with page counts. Useful for discovering what topics are available. |
-| `sbox_cache_status` | Show cache and index health — page counts, freshness, and whether indexing is complete. |
-| `sbox_run_tests` | Run built-in self-tests for cache, search, and crawler modules. Returns pass/fail results per test case. |
+| `sbox_search_api` | Search the s&box API reference by type name, namespace, or keyword. Returns matching types with namespace, description, and top member names. |
+| `sbox_get_api_type` | Get full details for a specific API type — all methods, properties, fields, events, XML doc comments, and inheritance. Supports chunked output for large types. |
+| `sbox_cache_status` | Show cache and index health — page counts, freshness, and whether both docs and API indexing are complete. |
+| `sbox_run_tests` | Run built-in self-tests for all six modules (cache, search, crawler — docs and API). Returns pass/fail results per test case. |
 
 ## Architecture
 
 ```
-docs.facepunch.com (Outline API)
-        │
-        ▼
-   DocCrawler ──► POST /api/shares.info   (document tree, 202 entries)
-        │         POST /api/documents.info (raw Markdown per page)
-        │
-        ▼
-    DocCache ──► ~/.sbox-docs-mcp/cache/manifest.json
-        │        TTL-based expiration (default 4h)
-        │
-        ▼
-   DocSearch ──► MiniSearch index
-                 Weighted fields: title (3x), category (2x), content (1x)
-                 Fuzzy matching (0.2) + prefix search
+docs.facepunch.com (Outline API)          cdn.sbox.game (AssemblySchema JSON)
+        │                                           │
+        ▼                                           ▼
+   DocCrawler ──► POST /api/shares.info       ApiCrawler ──► resolves schema URL
+        │         POST /api/documents.info          │         downloads + filters types
+        │                                           │
+        ▼                                           ▼
+    DocCache ──► ~/.sbox-docs-mcp/cache/       ApiCache ──► ~/.sbox-docs-mcp/cache/
+        │        manifest.json (TTL 4h)              │        api-types.json (TTL 24h)
+        │                                           │
+        ▼                                           ▼
+   DocSearch ──► MiniSearch index            ApiSearch ──► MiniSearch index
+                 title (3x), category (2x),              name (4x), fullName (3x),
+                 content (1x)                            members (2x), namespace (1.5x)
 ```
 
 ### Cache Behavior
 
 - **Location:** `~/.sbox-docs-mcp/cache/`
-- **TTL:** 4 hours (configurable via `SBOX_DOCS_CACHE_TTL` env var, in seconds)
+- **Docs TTL:** 4 hours (configurable via `SBOX_DOCS_CACHE_TTL` env var, in seconds)
+- **API TTL:** 24 hours — the schema is large (~9 MB) and changes infrequently
 - **Custom directory:** Set `SBOX_DOCS_CACHE_DIR` env var
-- Cache is populated on server startup in the background
-- Individual pages can be fetched on-demand if not yet cached
+- Both caches are populated on server startup in the background
+- Set `SBOX_API_SCHEMA_URL` to pin a specific schema version
 
 ## Related Projects
 
-- [sbox-api-mcp](https://github.com/SofianeBel/sbox-api-mcp) — MCP server for s&box API type reference (1,800+ types, 15,000+ members). Complements this server: use `sbox-api-mcp` for exact API signatures, use `sbox-mcp-documentation` for guides and concepts.
+- [Facepunch.AssemblySchema](https://github.com/Facepunch/Facepunch.AssemblySchema) — the schema format this server uses for API reference data
 
 ## License
 
