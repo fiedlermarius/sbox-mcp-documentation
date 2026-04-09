@@ -45,7 +45,6 @@ Documentation is fetched from the official [Facepunch docs](https://docs.facepun
 ### Option 1: npx (recommended)
 
 No install needed. Just reference `npx sbox-mcp-documentation` in your MCP configuration (see below).
-If using a local checkout instead of npx, replace `"command": "npx"` and `"args"` with `"command": "node"` and `"args": ["<path-to-repo>/dist/index.js"]`.
 
 ### Option 2: Global install
 
@@ -126,7 +125,7 @@ If you want to use a local checkout instead of `npx`, update your configuration 
 }
 ```
 
-If using a local checkout instead of npx, replace `"command": "npx"` and `"args"` with `"command": "node"` and `"args": ["<path-to-repo>/dist/index.js"]`.
+As shown above, you need to replace `"command": "npx"` and `"args"` with `"command": "node"` and `"args": ["<path-to-repo>/dist/index.js"]`.
 
 ## Tools
 
