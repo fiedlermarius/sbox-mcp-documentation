@@ -35,5 +35,38 @@ export const ListCategoriesInput = z
     .object({})
     .describe("No parameters required");
 
+export const SearchApiInput = z.object({
+    query: z
+        .string()
+        .min(1)
+        .describe("Type name, namespace, method name, or keyword to search in the API reference"),
+    limit: z
+        .number()
+        .min(1)
+        .max(20)
+        .default(8)
+        .describe("Maximum number of results (default: 8, max: 20)"),
+});
+
+export const GetApiTypeInput = z.object({
+    name: z
+        .string()
+        .min(1)
+        .describe("Short type name (e.g. 'Component') or fully-qualified name (e.g. 'Sandbox.Component')"),
+    start_index: z
+        .number()
+        .min(0)
+        .default(0)
+        .describe("Character offset to start reading from (default: 0)"),
+    max_length: z
+        .number()
+        .min(100)
+        .max(20000)
+        .default(5000)
+        .describe("Maximum content length in characters (default: 5000)"),
+});
+
 export type SearchDocsParams = z.infer<typeof SearchDocsInput>;
 export type GetDocPageParams = z.infer<typeof GetDocPageInput>;
+export type SearchApiParams = z.infer<typeof SearchApiInput>;
+export type GetApiTypeParams = z.infer<typeof GetApiTypeInput>;
