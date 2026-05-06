@@ -47,7 +47,7 @@ npm install -g sbox-mcp-documentation
 ## Data Sources
 
 ### Documentation
-Documentation is fetched from the official [Facepunch docs](https://docs.facepunch.com/s/sbox-dev) via the Outline wiki API, which returns raw Markdown directly. The server crawls the full document tree (~202 entries, 180+ with content) and builds a local search index using [MiniSearch](https://lucaong.github.io/minisearch/).
+Documentation is fetched from the official [s&box wiki](https://sbox.game/dev/doc) via the LLM-optimized index at [sbox.game/llms.txt](https://sbox.game/llms.txt). This file lists all available documentation pages, and each page is fetched as raw Markdown from `sbox.game/dev/doc/{page}.md`. The server crawls all listed pages and builds a local search index using [MiniSearch](https://lucaong.github.io/minisearch/).
 
 ### API Reference
 The API schema is downloaded from the Facepunch CDN as a JSON file (the same data powering [sbox.game/api](https://sbox.game/api)). It contains all public types from the s&box assembly — 1,800+ types with full member signatures, XML doc comments, and inheritance info. The server strips internal/compiler-generated types and indexes everything with MiniSearch for fast fuzzy lookup.
@@ -154,14 +154,14 @@ As shown above, you need to replace `"command": "npx"` and `"args"` with `"comma
 ## Architecture
 
 ```
-docs.facepunch.com (Outline API)          cdn.sbox.game (AssemblySchema JSON)
+sbox.game/llms.txt (doc index)            cdn.sbox.game (AssemblySchema JSON)
         │                                           │
         ▼                                           ▼
-   DocCrawler ──► POST /api/shares.info       ApiCrawler ──► resolves schema URL
-        │         POST /api/documents.info          │         downloads + filters types
+   DocCrawler ──► GET /llms.txt             ApiCrawler ──► resolves schema URL
+        │         GET /dev/doc/*.md               │         downloads + filters types
         │                                           │
         ▼                                           ▼
-    DocCache ──► ~/.sbox-docs-mcp/cache/       ApiCache ──► ~/.sbox-docs-mcp/cache/
+     DocCache ──► ~/.sbox-docs-mcp/cache/       ApiCache ──► ~/.sbox-docs-mcp/cache/
         │        manifest.json (TTL 4h)              │        api-types.json (TTL 24h)
         │                                           │
         ▼                                           ▼
