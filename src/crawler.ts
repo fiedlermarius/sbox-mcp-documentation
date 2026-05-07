@@ -1,64 +1,85 @@
 import { DocCache, type CachedPage } from "./cache.js";
 
-const OUTLINE_API = "https://docs.facepunch.com/api";
-const SHARE_ID = "sbox-dev";
-const DOCS_BASE = "https://docs.facepunch.com/s/sbox-dev";
-const REQUEST_DELAY_MS = 100;
+const LLMS_TXT_URL = "https://sbox.game/llms.txt";
+const WIKI_BASE_URL = "https://sbox.game";
+const WIKI_DOC_PREFIX = "/dev/doc/";
+const REQUEST_DELAY_MS = 150;
 const REQUEST_TIMEOUT_MS = 15000;
 
-interface TreeNode {
-    id: string;
-    url: string;
+interface LlmsEntry {
     title: string;
-    icon?: string;
-    emoji?: string;
-    children?: TreeNode[];
-}
-
-async function apiPost(endpoint: string, body: Record<string, unknown>): Promise<unknown> {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-        const res = await fetch(`${OUTLINE_API}/${endpoint}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-            signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) return null;
-        const json = (await res.json()) as { data?: unknown };
-        return json.data ?? null;
-    } catch {
-        clearTimeout(timeout);
-        return null;
-    }
+    path: string; // e.g. /dev/doc/scene/components.md
 }
 
 function delay(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function flattenTree(
-    node: TreeNode,
-    parentPath: string = ""
-): Array<{ id: string; title: string; path: string; url: string }> {
-    const currentPath = parentPath ? `${parentPath}/${node.title}` : node.title;
-    const result = [{ id: node.id, title: node.title, path: currentPath, url: node.url }];
-    if (node.children) {
-        for (const child of node.children) {
-            result.push(...flattenTree(child, currentPath));
-        }
+/** Parse an llms.txt file and return all /dev/doc/ entries. */
+function parseLlmsTxt(raw: string): LlmsEntry[] {
+    const entries: LlmsEntry[] = [];
+    const linkPattern = /^-\s+\[(.+?)\]\((.+?)\)/;
+    for (const line of raw.split("\n")) {
+        const match = line.match(linkPattern);
+        if (!match) continue;
+        const title = match[1]!;
+        const path = match[2]!;
+        if (!path.startsWith(WIKI_DOC_PREFIX)) continue;
+        entries.push({ title, path });
     }
-    return result;
+    return entries;
 }
 
+/** Extract a category label from the /dev/doc/{category}/... path. */
 function extractCategory(path: string): string {
-    // Path: "S&box Documentation/Systems/Input/Controller Input"
-    // Category = second level after root
-    const parts = path.split("/").filter(Boolean);
-    if (parts.length >= 2) return parts[1]!;
-    return "root";
+    const stripped = path.replace(WIKI_DOC_PREFIX, "").replace(/\.md$/, "");
+    const parts = stripped.split("/").filter(Boolean);
+    return parts.length > 0 ? parts[0]! : "general";
+}
+
+/** Canonical page URL (without .md) used as the cache key and shown to users. */
+function pageUrlFromPath(path: string): string {
+    return `${WIKI_BASE_URL}${path.replace(/\.md$/, "")}`;
+}
+
+/** Raw Markdown URL used to fetch content. */
+function markdownUrlFromPath(path: string): string {
+    const mdPath = path.endsWith(".md") ? path : `${path}.md`;
+    return `${WIKI_BASE_URL}${mdPath}`;
+}
+
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeout);
+        return res;
+    } catch (e) {
+        clearTimeout(timeout);
+        throw e;
+    }
+}
+
+async function fetchLlmsTxt(): Promise<LlmsEntry[] | null> {
+    try {
+        const res = await fetchWithTimeout(LLMS_TXT_URL, REQUEST_TIMEOUT_MS);
+        if (!res.ok) return null;
+        const raw = await res.text();
+        return parseLlmsTxt(raw);
+    } catch {
+        return null;
+    }
+}
+
+async function fetchMarkdown(url: string): Promise<string | null> {
+    try {
+        const res = await fetchWithTimeout(url, REQUEST_TIMEOUT_MS);
+        if (!res.ok) return null;
+        return await res.text();
+    } catch {
+        return null;
+    }
 }
 
 export interface CrawlStats {
@@ -70,8 +91,7 @@ export interface CrawlStats {
 
 export class DocCrawler {
     private cache: DocCache;
-    private shareUuid: string | null = null;
-    private docTree: Array<{ id: string; title: string; path: string; url: string }> = [];
+    private llmsEntries: LlmsEntry[] = [];
 
     // --- Self-Test (pure functions only, no network) ---
     static runSelfTest(): { passed: string[]; failed: string[] } {
@@ -82,60 +102,56 @@ export class DocCrawler {
             (condition ? passed : failed).push(name);
         }
 
-        // Test: flattenTree
-        const tree: TreeNode = {
-            id: "root", url: "/doc/root", title: "Root",
-            children: [
-                {
-                    id: "a", url: "/doc/a", title: "Alpha", children: [
-                        { id: "a1", url: "/doc/a1", title: "Alpha One" },
-                    ]
-                },
-                { id: "b", url: "/doc/b", title: "Beta" },
-            ],
-        };
-        const flat = flattenTree(tree);
-        assert("flattenTree returns 4 nodes", flat.length === 4);
-        assert("flattenTree root path", flat[0]?.path === "Root");
-        assert("flattenTree nested path", flat[2]?.path === "Root/Alpha/Alpha One");
-        assert("flattenTree preserves ids", flat[1]?.id === "a");
-        assert("flattenTree preserves urls", flat[3]?.url === "/doc/b");
+        // Test: parseLlmsTxt
+        const sample = [
+            "# S&box Documentation",
+            "",
+            "## Scene",
+            "- [Components](/dev/doc/scene/components.md): Learn about components",
+            "- [GameObjects](/dev/doc/scene/gameobjects.md)",
+            "## Networking",
+            "- [RPC Messages](/dev/doc/networking/rpc-messages.md): Remote procedure calls",
+            "- [Ignore this](https://example.com/other): Not a wiki page",
+            "  Not a list item",
+        ].join("\n");
+
+        const entries = parseLlmsTxt(sample);
+        assert("parseLlmsTxt returns 3 wiki entries", entries.length === 3);
+        assert("parseLlmsTxt first entry title", entries[0]?.title === "Components");
+        assert("parseLlmsTxt first entry path", entries[0]?.path === "/dev/doc/scene/components.md");
+        assert("parseLlmsTxt skips non-/dev/doc/ links", !entries.some((e) => e.path.startsWith("https")));
 
         // Test: extractCategory
-        assert("extractCategory 4-part path", extractCategory("Root/Systems/Input/Controller") === "Systems");
-        assert("extractCategory 2-part path", extractCategory("Root/About") === "About");
-        assert("extractCategory 1-part path", extractCategory("Root") === "root");
-        assert("extractCategory empty string", extractCategory("") === "root");
+        assert("extractCategory scene/components.md", extractCategory("/dev/doc/scene/components.md") === "scene");
+        assert("extractCategory networking/rpc.md", extractCategory("/dev/doc/networking/rpc.md") === "networking");
+        assert("extractCategory top-level.md", extractCategory("/dev/doc/top-level.md") === "top-level");
+        assert("extractCategory empty suffix", extractCategory("/dev/doc/") === "general");
+
+        // Test: pageUrlFromPath
+        assert(
+            "pageUrlFromPath strips .md",
+            pageUrlFromPath("/dev/doc/scene/components.md") === "https://sbox.game/dev/doc/scene/components"
+        );
+        assert(
+            "pageUrlFromPath no-op without .md",
+            pageUrlFromPath("/dev/doc/scene/components") === "https://sbox.game/dev/doc/scene/components"
+        );
+
+        // Test: markdownUrlFromPath
+        assert(
+            "markdownUrlFromPath adds .md",
+            markdownUrlFromPath("/dev/doc/scene/components") === "https://sbox.game/dev/doc/scene/components.md"
+        );
+        assert(
+            "markdownUrlFromPath no double .md",
+            markdownUrlFromPath("/dev/doc/scene/components.md") === "https://sbox.game/dev/doc/scene/components.md"
+        );
 
         return { passed, failed };
     }
 
     constructor(cache: DocCache) {
         this.cache = cache;
-    }
-
-    private async loadTree(): Promise<boolean> {
-        const data = (await apiPost("shares.info", { id: SHARE_ID })) as {
-            shares: Array<{ id: string }>;
-            sharedTree: TreeNode;
-        } | null;
-
-        if (!data?.sharedTree || !data.shares?.[0]) return false;
-
-        this.shareUuid = data.shares[0].id;
-        this.docTree = flattenTree(data.sharedTree);
-        return true;
-    }
-
-    private async fetchDoc(
-        docId: string
-    ): Promise<{ title: string; text: string; updatedAt?: string } | null> {
-        const data = (await apiPost("documents.info", {
-            id: docId,
-            shareId: this.shareUuid,
-        })) as { title: string; text: string; updatedAt?: string } | null;
-
-        return data;
     }
 
     async crawlAll(
@@ -149,57 +165,57 @@ export class DocCrawler {
 
         const stats: CrawlStats = { crawled: 0, failed: 0, fromCache: 0, total: 0 };
 
-        // Load the document tree from the Outline API
-        const treeLoaded = await this.loadTree();
-        if (!treeLoaded) {
+        // Fetch and parse the llms.txt index
+        const entries = await fetchLlmsTxt();
+        if (!entries) {
             process.stderr.write(
-                "\n[sbox-docs-mcp] ERROR: Could not load document tree from docs.facepunch.com\n"
+                "\n[sbox-docs-mcp] ERROR: Could not fetch documentation index from sbox.game/llms.txt\n"
             );
             stats.fromCache = this.cache.getPageCount();
             return stats;
         }
 
-        stats.total = this.docTree.length;
+        this.llmsEntries = entries;
+        stats.total = entries.length;
 
         process.stderr.write(
-            `\n[sbox-docs-mcp] Found ${this.docTree.length} docs in tree\n`
+            `\n[sbox-docs-mcp] Found ${entries.length} docs in llms.txt\n`
         );
 
-        for (const doc of this.docTree) {
-            const fullUrl = `${DOCS_BASE}${doc.url}`;
+        for (const entry of entries) {
+            const pageUrl = pageUrlFromPath(entry.path);
 
             // Check page-level cache
-            if (this.cache.isPageFresh(fullUrl)) {
+            if (this.cache.isPageFresh(pageUrl)) {
                 stats.fromCache++;
-                process.stderr.write(`\n[sbox-docs-mcp] Skipped (cached):\n${fullUrl}\n`);
                 onProgress?.(stats);
                 continue;
             }
 
-            const fetched = await this.fetchDoc(doc.id);
-            if (!fetched) {
+            const mdUrl = markdownUrlFromPath(entry.path);
+            const markdown = await fetchMarkdown(mdUrl);
+
+            if (!markdown) {
                 stats.failed++;
-                process.stderr.write(`\n[sbox-docs-mcp] Skipped (fetch failed):\n${fullUrl} (no response)\n`);
+                process.stderr.write(`\n[sbox-docs-mcp] Skipped (fetch failed): ${mdUrl}\n`);
                 onProgress?.(stats);
                 await delay(REQUEST_DELAY_MS);
                 continue;
             }
-            if (!fetched.text || fetched.text.length < 10) {
+            if (markdown.length < 10) {
                 stats.failed++;
-                let reason = !fetched.text ? "empty text" : "too short";
-                process.stderr.write(`\n[sbox-docs-mcp] Skipped (${reason}):\n${fullUrl}\n`);
+                process.stderr.write(`\n[sbox-docs-mcp] Skipped (too short): ${mdUrl}\n`);
                 onProgress?.(stats);
                 await delay(REQUEST_DELAY_MS);
                 continue;
             }
 
             const page: CachedPage = {
-                url: fullUrl,
-                title: fetched.title || doc.title,
-                category: extractCategory(doc.path),
-                markdown: fetched.text,
+                url: pageUrl,
+                title: entry.title,
+                category: extractCategory(entry.path),
+                markdown,
                 fetchedAt: Date.now(),
-                lastUpdated: fetched.updatedAt,
             };
 
             this.cache.setPage(page);
@@ -208,8 +224,8 @@ export class DocCrawler {
             await delay(REQUEST_DELAY_MS);
         }
 
-        // Prune cached pages that are no longer in the doc tree
-        const validUrls = new Set(this.docTree.map((d) => `${DOCS_BASE}${d.url}`));
+        // Prune cached pages that are no longer in the llms.txt index
+        const validUrls = new Set(entries.map((e) => pageUrlFromPath(e.path)));
         const pruned = this.cache.removePagesNotIn(validUrls);
         if (pruned > 0) {
             process.stderr.write(
@@ -223,32 +239,43 @@ export class DocCrawler {
     }
 
     async crawlSinglePage(url: string): Promise<CachedPage | null> {
+        // Normalize: strip trailing slash and ensure no .md suffix in the cache key
+        let normalized = url.endsWith("/") ? url.slice(0, -1) : url;
+        normalized = normalized.replace(/\.md$/, "");
+
         // Check cache first
-        if (this.cache.isPageFresh(url)) {
-            return this.cache.getPage(url) || null;
+        if (this.cache.isPageFresh(normalized)) {
+            return this.cache.getPage(normalized) || null;
         }
 
-        // We need the tree to resolve URL -> document ID
-        if (this.docTree.length === 0) {
-            await this.loadTree();
+        // Load the index if we haven't yet (needed for title + category lookup)
+        if (this.llmsEntries.length === 0) {
+            const entries = await fetchLlmsTxt();
+            if (entries) this.llmsEntries = entries;
         }
 
-        // URL: https://docs.facepunch.com/s/sbox-dev/doc/controller-input-T0B8XRcyf1
-        const urlPath = url.replace(DOCS_BASE, "");
-        const treeEntry = this.docTree.find((d) => d.url === urlPath);
+        // Derive the /dev/doc/... path from the URL
+        const docPath = normalized.replace(WIKI_BASE_URL, "");
+        const mdUrl = docPath.endsWith(".md") ? `${WIKI_BASE_URL}${docPath}` : `${WIKI_BASE_URL}${docPath}.md`;
 
-        if (!treeEntry) return null;
+        const markdown = await fetchMarkdown(mdUrl);
+        if (!markdown || markdown.length < 10) return null;
 
-        const fetched = await this.fetchDoc(treeEntry.id);
-        if (!fetched || !fetched.text) return null;
+        // Try to find a matching entry for the title; fall back to path-derived title
+        const entry = this.llmsEntries.find(
+            (e) => pageUrlFromPath(e.path) === normalized
+        );
+        const title =
+            entry?.title ||
+            docPath.split("/").pop()?.replace(/\.md$/, "").replace(/-/g, " ") ||
+            "Untitled";
 
         const page: CachedPage = {
-            url,
-            title: fetched.title || treeEntry.title,
-            category: extractCategory(treeEntry.path),
-            markdown: fetched.text,
+            url: normalized,
+            title,
+            category: extractCategory(`${docPath}.md`),
+            markdown,
             fetchedAt: Date.now(),
-            lastUpdated: fetched.updatedAt,
         };
 
         this.cache.setPage(page);

@@ -17,7 +17,7 @@ export const SearchDocsInput = z.object({
 export const GetDocPageInput = z.object({
     url: z
         .string()
-        .describe("Full URL of the documentation page (from docs.facepunch.com/s/sbox-dev/doc/...)"),
+        .describe("Full URL of the documentation page (e.g. https://sbox.game/dev/doc/scene/components)"),
     start_index: z
         .number()
         .min(0)
